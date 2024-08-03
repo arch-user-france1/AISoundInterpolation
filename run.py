@@ -6,7 +6,7 @@ from train import InterpolationModel
 import tqdm
 
 
-bs = 16
+bs = 128 if torch.cuda.is_available() else 8
 seq_len = 1000
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -52,7 +52,7 @@ with torch.no_grad():
         processQueue.extend(seq)
 
         if len(processQueue) == bs or len(waveform[0]) - 1 == i:
-            preds = model(torch.stack(list(x[0] for x in processQueue))).cpu()
+            preds = model(torch.stack(list(x[0] for x in processQueue)))[0].cpu()
 
             for i, sequence in enumerate(processQueue):
                 #chunk.append((sequence[0][-1], sequence[1]))
