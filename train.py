@@ -86,7 +86,7 @@ class MusicDataset(Dataset):
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print("Using device:", device)
-    device = torch.device("cpu")
+
     bs = 32 if device.type == "cuda" else 8
     n_epochs = 1
 
