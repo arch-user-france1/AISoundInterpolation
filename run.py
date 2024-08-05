@@ -2,20 +2,19 @@ import torch
 import torchaudio
 from torchaudio.io import StreamReader
 from torchaudio.io import StreamWriter
-from train import InterpolationModel
+from train import InterpolationModel, seq_len
 import tqdm
 
 
-bs = 128 if torch.cuda.is_available() else 8
-seq_len = 1000
+bs = 256 if torch.cuda.is_available() else 8
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 model = torch.load("model.pt", map_location=device, weights_only=False)
+model = torch.compile(model)
 model.eval()
 
-
-waveform, sample_rate = torchaudio.load("out.wav")
+waveform, sample_rate = torchaudio.load("music/downsampled.wav")
 num_channels, num_frames = waveform.shape
 
 #new_waveform = [[], []]
@@ -55,8 +54,6 @@ with torch.no_grad():
             preds = model(torch.stack(list(x[0] for x in processQueue)))[0].cpu()
 
             for i, sequence in enumerate(processQueue):
-                #chunk.append((sequence[0][-1], sequence[1]))
-                #chunk.append((preds[i], sequence[1]))
                 out[sequence[1]].append(sequence[0][-2])
                 out[sequence[1]].append(preds[i])
 
