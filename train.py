@@ -11,15 +11,16 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 
 
-seq_len = 1000
+seq_len = 500
 
 class InterpolationModel(nn.Module):
-    def __init__(self, hidden_size=128):
+    def __init__(self, hidden_size=256):
         super(InterpolationModel, self).__init__()
 
         self.lstm = nn.LSTM(input_size=1, hidden_size=hidden_size, batch_first=True)
 
         self.net = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
             nn.Linear(hidden_size, 1)
         )
     
@@ -89,17 +90,19 @@ if __name__ == "__main__":
 
     bs = 128 if device.type == "cuda" else 8
     n_epochs = 1
+    max_batches = None
 
     musicDataset = MusicDataset("music", device="cpu", seq_len=seq_len)
     dset_train, dset_val = random_split(musicDataset, [0.8, 0.2])
 
     model = InterpolationModel()
     model.to(device)
+    model = torch.compile(model)
 
     train = DataLoader(dset_train, batch_size=bs, shuffle=True, num_workers=0 if device.type == "cuda" else 0)
     val = DataLoader(dset_val, batch_size=bs, shuffle=False, num_workers=4 if device.type == "cuda" else 0)
 
-    optimizer = optim.Adam(model.parameters(), lr=0.0005)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001, eps=1e-10)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.01)
     criterion = nn.MSELoss()
 
@@ -108,7 +111,7 @@ if __name__ == "__main__":
         model.train()
         train_losses = []
         val_losses = []
-        for X, y in tqdm(train, mininterval=1):
+        for i, (X, y) in enumerate(tqdm(train, mininterval=1, total=max_batches)):
             X = X.to(device)
             y = y.to(device)
 
@@ -122,6 +125,9 @@ if __name__ == "__main__":
 
             print(f"\033[F\033[KLoss: {l.item()}", flush=False)
 
+            if max_batches and i + 1 == max_batches:
+                break
+
         print(f"\nEpoch: {epoch}, Loss: {round(sum(train_losses) / len(train_losses), 6)}")
         
 
@@ -129,7 +135,7 @@ if __name__ == "__main__":
         
         with torch.no_grad():
             model.eval()
-            for X, y in val:
+            for i, (X, y) in enumerate(tqdm(val, mininterval=1, total=max_batches//2 if max_batches else None)):
                 X = X.to(device)
                 y = y.to(device)
 
@@ -137,6 +143,9 @@ if __name__ == "__main__":
                 l = criterion(pred, y)
 
                 val_losses.append(l.item())
+
+                if max_batches and i + 1 == max_batches // 2:
+                    break
 
             print(f"Epoch: {epoch}, Val Loss: {round(sum(val_losses) / len(val_losses), 6)}\n")
         
